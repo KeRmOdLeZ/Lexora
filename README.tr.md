@@ -29,13 +29,15 @@ Flutter ile geliştirilmiş, tamamen çevrimdışı çalışan (offline-first) �
 - **Kişisel Kelime Defteri:** Sözlük aramalarından veya çalışma oturumlarından kelimeleri kaydedip düzenli olarak tekrar etme imkânı verir.
 - **Gizlilik Odaklı ve Taşınabilir:** Sunucu yok, hesap yok, kullanıcı takibi yok. İlerlemeyi taşımak için şema doğrulamalı JSON yedekleme ve geri yükleme içerir.
 
+> **Arayüz Dili Notu:** Sözlük tanımları, örnek cümleler ve telaffuzlar tamamen İngilizce–İngilizce (tek dilli) olup uygulama arayüzü, bildirimler ve ana ekran widget metinleri şu an yalnızca **Türkçe**dir.
+
 ---
 
 ## Mimari
 
 Lexora, statik sözlük verisi ile değişken kullanıcı verisini birbirinden ayıran **çift SQLite mimarisi** kullanır:
 
-1. **Salt Okunur Sözlük (`vocab_dict.db`):** Uygulama paketine gzip ile sıkıştırılmış olarak (`vocab_dict.db.gz`, yaklaşık 85 MB sıkıştırılmış / 266 MB açılmış) dahil edilir ve `assets/vocab_dict.meta.json` (SHA-256) ile bütünlüğü doğrulanır. İlk açılışta yerel Kotlin çıkarıcısı (`DictExtractor.kt`), Dart bellek yükünü artırmadan veritabanını doğrudan cihaz depolamasına açar.
+1. **Salt Okunur Sözlük (`vocab_dict.db`):** Uygulama paketine gzip ile sıkıştırılmış olarak (`vocab_dict.db.gz`, yaklaşık 85,4 MB sıkıştırılmış / 266,4 MB açılmış) dahil edilir ve `assets/vocab_dict.meta.json` (SHA-256) ile bütünlüğü doğrulanır. İlk açılışta yerel Kotlin çıkarıcısı (`DictExtractor.kt`), Dart bellek yükünü artırmadan veritabanını doğrudan cihaz depolamasına açar.
 2. **Kullanıcı Veritabanı (`user_data.db`):** SRS planlarını, oturum kayıtlarını, seviye ayarlarını ve kişisel kelime defterini yerel olarak saklar.
 3. **Python ETL Boru Hattı (`tools/build_vocab_db.py`):** Ham Kaikki.org Wiktionary JSONL verisini işleyip indekslenmiş, sıkıştırılmış SQLite veritabanına dönüştürür ve bütünlük meta verisini üretir.
 4. **Sertleştirilmiş Yayın Yapılandırması:** R8/ProGuard koruma kuralları, Android `network_security_config.xml`, `data_extraction_rules.xml` ve birim testlerle doğrulanan URL/yedekleme denetleyicilerini içerir.
@@ -73,14 +75,21 @@ Lexora/
 
 ---
 
-## Kurulum ve Derleme
+## İndirme (Hazır APK)
 
-> **Not:** Hazır sözlük veritabanı (`assets/vocab_dict.db.gz`), GitHub'ın 100 MB tek dosya sınırı nedeniyle depoya dahil edilmemiştir. Uygulamayı derlemeden önce projedeki Python ETL script'i ile yerel olarak üretmeniz gerekir.
+Uygulamayı kaynaktan derlemeden doğrudan Android cihazınıza (Android 7.0 / API 24+) kurmak için, 737 bin kelimelik tam sözlük gömülü hazır APK'yı [GitHub Releases](https://github.com/KeRmOdLeZ/Lexora/releases) sayfasından indirebilirsiniz.
+
+---
+
+## Kurulum ve Kaynaktan Derleme
+
+> **Not:** Hazır sözlük veritabanı (`assets/vocab_dict.db.gz`, ~85,4 MB) depo geçmişini şişirmemek için Git'e dahil edilmemiştir. Derleme öncesinde [GitHub Releases](https://github.com/KeRmOdLeZ/Lexora/releases) sayfasından indirebilir veya projedeki Python ETL script'i ile yerel olarak üretebilirsiniz.
 
 ### Gereksinimler
 
-- **Flutter SDK** (3.x) ve **Android SDK**
-- **Python 3.10+** (sözlük veritabanını oluşturmak için)
+- **Flutter SDK** `>=3.44.0` (**Dart SDK** `^3.13.5`)
+- **Android SDK** (`minSdk 24`, `targetSdk 35`, `compileSdk 36`)
+- **Python 3.10+** (yalnızca sözlüğü Releases'tan indirmek yerine yerel olarak üretmek isterseniz)
 
 ### 1. Depoyu Klonlayın
 
@@ -89,13 +98,27 @@ git clone https://github.com/KeRmOdLeZ/Lexora.git
 cd Lexora
 ```
 
-### 2. Çevrimdışı Sözlük Veritabanını Oluşturun
+### 2. Çevrimdışı Sözlük Veritabanını Hazırlayın
 
-İngilizce Wiktionary verisini indirip işleyerek `assets/vocab_dict.db.gz` ve `assets/vocab_dict.meta.json` dosyalarını üretmek için:
+`assets/vocab_dict.db.gz` dosyasını hazırlamak için aşağıdaki seçeneklerden birini kullanın:
 
-```bash
-python tools/build_vocab_db.py
-```
+- **Seçenek A — Hazır sözlüğü indirin (önerilen):**
+  [GitHub Releases](https://github.com/KeRmOdLeZ/Lexora/releases) sayfasından `vocab_dict.db.gz` dosyasını indirip doğrudan `assets/vocab_dict.db.gz` konumuna yerleştirin (`assets/vocab_dict.meta.json` içindeki SHA-256 özetiyle birebir uyumludur).
+
+- **Seçenek B — Kaikki.org üzerinden tam sözlüğü yerel olarak oluşturun:**
+  ```bash
+  # Sezgisel (heuristic) CEFR seviye ataması ile tam Wiktionary veritabanı
+  python tools/build_vocab_db.py --full --allow-heuristic-cefr
+
+  # Veya kendi CEFR CSV dosyanızla (sütunlar: word, level [A1..C2])
+  python tools/build_vocab_db.py --full --cefr-csv path/to/cefr.csv
+  ```
+  > `--full` modu `--cefr-csv` veya `--allow-heuristic-cefr` olmadan çalıştırılırsa kelimelerin CEFR seviyeleri boş (`NULL`) kalır; bu durumda seviye belirleme testi, günlük çalışma havuzu ve ana ekran widget döngüsü çalışmaz.
+
+- **Seçenek C — 120 kelimelik örnek sözlüğü oluşturun (hızlı geliştirme/test):**
+  ```bash
+  python tools/build_vocab_db.py --sample
+  ```
 
 ### 3. Bağımlılıkları Yükleyin ve Testleri Çalıştırın
 
@@ -110,9 +133,11 @@ flutter test
 # Bağlı Android cihazda çalıştır
 flutter run
 
-# Release APK derle
-flutter build apk --release
+# Yerel dosya yolu sembollerini gizleyerek release APK derle
+flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
 ```
+
+> **İmzalama Notu:** `android/app/build.gradle.kts` yerel derlemeler için varsayılan olarak Android debug anahtarını kullanır. APK'yı herkese açık dağıtacağınız veya Google Play'de yayınlayacağınız zaman ayrı bir release keystore yapılandırın (ör. `.gitignore` ile korunan `android/key.properties` üzerinden).
 
 ---
 
